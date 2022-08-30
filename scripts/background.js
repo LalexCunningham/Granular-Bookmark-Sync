@@ -1,6 +1,13 @@
+var bookmarks = {};
+
 browser.runtime.onInstalled.addListener(() => {
 	saveBookmarks();
+
 })
+
+browser.bookmarks.onCreated.addListener(handleCreatedBookmark);
+
+browser.bookmarks.onChanged.addListener(handleChangedBookmark);
 
 async function loadBookmarks() {
 	const bookmarksRoot = await browser.bookmarks.getTree()
@@ -10,40 +17,67 @@ async function loadBookmarks() {
 
 async function saveBookmarks () {
 	const bookmarksRoot = await browser.bookmarks.getTree()
-	const bookmarksToolbar = bookmarksRoot[0].children[1].children;
+	const bookmarksToolbar = bookmarksRoot[0].children[1];
 
-	var bookmarks = traverseBookmarks(bookmarksToolbar, 0);
+	loadBrowserBookmarksRecursive(bookmarksToolbar, "");
 
 	browser.storage.local.set({
 		"bookmarks": bookmarks
 	})
 }
 
-function traverseBookmarks(folder, level) {
-	var folderContents = [];
+function loadBrowserBookmarksRecursive(bookmark, parentId) {
+	var bookmarkEntry = {
+		type: "folder",
+		title: bookmark.title,
+		dateAdded: bookmark.dateAdded,
+		parent: parentId,
+		children: [],
+		isSynced: false,
+	}
 
-	for (let i = 0; i < folder.length; i++) {
-		var bookmark = folder[i];
-		var bookmarkObj;
+	bookmarks[bookmark.id] = bookmarkEntry;
 
-		if (bookmark.type === "folder") {
-			bookmarkObj = {
-				type: "folder",
-				title: bookmark.title,
-				contents: traverseBookmarks(bookmark.children, level + 1),
-				isSynced: false
-			} 			
+	for (let i = 0; i < bookmark.children.length; i++) {
+		var child = bookmark.children[i];
+
+		bookmarks[bookmark.id].children.push(child.id);
+
+		if (child.type === "folder") {
+			loadBrowserBookmarksRecursive(child, bookmark.id);
 		} else {
-			bookmarkObj = {
+			bookmarks[child.id] = {
 				type: "bookmark",
-				title: bookmark.title,
-				url: bookmark.url,
+				title: child.title,
+				url: child.url,
+				dateAdded: child.dateAdded,
+				parent: bookmark.id,
 				isSynced: false
 			}
 		}
+	}
+}
 
-		folderContents[i] = bookmarkObj;
+function handleChangedBookmark(id, changeInfo) {
+	if (changeInfo.title) {
+		console.log(changeInfo.title);
 	}
 
-	return folderContents;
+	if (changeInfo.url) {
+		console.log(changeInfo.url);
+	}		
 }
+
+function handleCreatedBookmark(id, bookmarkInfo) {
+	console.log(id);
+	console.log(bookmarkInfo);
+}
+
+function handleMovedBookmark(id, moveInfo) {
+
+}
+
+function handleRemovedBookmark(id, removeInfo) {
+
+}
+
